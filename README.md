@@ -4,6 +4,11 @@
 
 <img src="assets/aid_main.gif" width="90%"/>
 
+
+[![arXiv](https://img.shields.io/badge/arXiv-2512.02535-red?style=flat&logo=arxiv)](https://arxiv.org/abs/2512.02535)
+[![Linux platform](https://img.shields.io/badge/Platform-linux--64-orange.svg)](https://ubuntu.com/blog/tag/22-04-lts)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)]()
+
 </div>
 
 ---
