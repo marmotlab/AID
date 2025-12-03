@@ -1,0 +1,185 @@
+defaults:
+  - _self_
+hydra:
+  run:
+    dir: ${logdir}
+_target_: execution.driver.ft_driver.FinetuneDriver
+
+name: ${env_name}_${data_type}_ft_diffusion_unet_img_tp${horizon_steps}_ta${act_steps}_td${denoising_steps}_tdf${ft_denoising_steps}
+logdir: logs/finetune/${name}/ft_rigtreedata
+
+# General Params
+seed: 42
+device: cuda # WATCH
+env_name: gp_ipp
+data_type: delta # Action collected: abs (absolute pos), delta (delta pos), theta (angle)
+
+wandb:
+  entity: # ${oc.env:DPPO_WANDB_ENTITY}
+  project: ${env_name}-finetune-aid
+  run: ${now:%H-%M-%S}_${name}
+
+# Params for Driver
+train_path: logs/pretrain/gp_ipp_delta_pre_diffusion_unet_tp8_td20/pt_rigtreedata
+base_policy_path: ${train_path}/checkpoint/state_700.pt
+normalization_path: null # ${train_path}/normalization.npz
+
+num_gpu: 1
+num_meta_agent: 10 # number of ray processes
+num_episode_per_train_step: 50 # 100 # WATCH
+num_agent: 3 # number of agents in each environment
+num_episode: # unused here
+save_image: False # Not used, save gif if eval
+gifs_path: ${logdir}/gifs
+
+train:
+  n_train_itr: 501 # WATCH
+  n_critic_warmup_itr: 2
+  # n_steps: 300 # not used, steps depend on env
+  gamma: 0.999
+  actor_lr: 1e-5 # WATCH
+  actor_weight_decay: 0
+  actor_lr_scheduler:
+    first_cycle_steps: ${train.n_train_itr}
+    warmup_steps: 10
+    min_lr: 1e-5 # WATCH
+  critic_lr: 1e-4 # WATCH
+  critic_weight_decay: 0
+  critic_lr_scheduler:
+    first_cycle_steps: ${train.n_train_itr}
+    warmup_steps: 10
+    min_lr: 1e-4 # WATCH
+  save_model_freq: 10
+  val_freq: 10
+  # PPO specific
+  reward_scale_running: False # True
+  reward_scale_const: 1.0
+  gae_lambda: 0.95
+  batch_size: 400 # WATCH
+  accumulated_update_per_epoch: 1 # WATCH
+  logprob_batch_size: 128
+  update_epochs: 10 # WATCH
+  vf_coef: 0.5
+  target_kl: 1
+
+runner:
+  _target_: execution.runner.ft_runner.FinetuneRunner
+
+worker:
+  _target_: execution.worker.ft_diffusion_worker.FinetuneDiffusionWorker
+  num_agent: ${num_agent}
+  diffusion_model: ${model}
+  cond_steps: ${cond_steps}
+  num_paths: 5 # 5 # WATCH
+  action_steps: ${act_steps}
+  budget: 3 # budget for each agent 3
+  steps: 256 # Maximum number of steps for each agent
+  data_type: ${data_type}
+  normalization_path: ${normalization_path}
+  step_size: 0.1 # distance travelled (only if data_type is theta)
+  device: ${device}
+  save_image: ${save_image}
+  gifs_path: ${gifs_path}
+  eval: False
+
+# Params describing PRM (Env)
+k_size: 20 # PRM k-nearest neighbors
+sample_size: 200 # Env PRM nodes (Total = sample_size + (start, destination))
+
+# Params describing Agent Behavior (Env)
+measurement_interval: 0.1 # distance between measurements 0.2
+
+# High Interest (Env)
+threshold: 0.4 # threshold to determine high interest for GP
+beta: 1 # confidence interval to determine high interest for GP 
+sensor_range: 0.25 # sensor range for GP observation
+
+env:
+  _target_: classes.env.env.Env
+  num_agent: ${num_agent}
+  sample_size: ${sample_size}
+  measurement_interval: ${measurement_interval}
+  k_size: ${k_size}
+  start: # None
+  destination: # None
+  obstacle: []
+  save_image: ${save_image}
+  seed: # None
+  adaptive_area: True
+  threshold: ${threshold} # threshold to determine high interest for GP
+  beta: ${beta} # confidence interval to determine high interest for GP
+  sensor_range: ${sensor_range} # sensor range for GP observation
+  gaussian_num: [8, 12] # range of number of gaussians for underlying distribution
+
+# Params for Diffusion Model
+node_dim: 5 # Node inputs Dimension
+pos_dim: 32 # Pos Encoding Dimension
+agent_dim: 4 # Agent inputs dimension
+embedding_dim: 64 # Embedding Dimension for Graph Attention Encoder # WATCH
+action_dim: 2 # Action Dimension 2 for abs, delta, 1 for theta
+cond_steps: 2 # WATCH
+horizon_steps: 8 # WATCH
+act_steps: 2 # WATCH
+reward_horizon: 8 # WATCH
+denoising_steps: 20 # WATCH
+ft_denoising_steps: 10 # WATCH
+use_ddim: False # WATCH
+
+model:
+  _target_: model.diffusion.diffusion_ppo.PPODiffusion
+  # HP to tune
+  gamma_denoising: 0.99
+  clip_ploss_coef: 0.01 # 0.01 or 0.001 appendix B of DPPO # WATCH 
+  clip_ploss_coef_base: 0.001 # WATCH
+  clip_ploss_coef_rate: 3 # WATCH
+  randn_clip_value: 3 # WATCH
+  min_sampling_denoising_std: 0.1 # 0.1 or 0.05 # 4.3 of DPPO # WATCH
+  min_logprob_denoising_std: 0.1 # 0.1 # WATCH
+  #
+  use_ddim: ${use_ddim}
+  ddim_steps: ${ft_denoising_steps}
+  learn_eta: False
+  eta: # Kinda useless shld be 0 for eval, 1 for train (4.3 of DPPO)
+    base_eta: 1
+    input_dim: ${embedding_dim}
+    mlp_dims: [256, 256]
+    action_dim: ${action_dim}
+    min_eta: 0.1
+    max_eta: 1.0
+    _target_: model.diffusion.eta.EtaFixed
+  network_path: ${base_policy_path}
+  actor:
+    _target_: model.diffusion.unet.GraphUnet1D
+    backbone:
+      _target_: model.common.AttentionNet.GraphAttentionEncoder5 # WATCH
+      node_dim: ${node_dim}
+      pos_dim: ${pos_dim}
+      agent_dim: ${agent_dim}
+      embedding_dim: ${embedding_dim}
+    diffusion_step_embed_dim: 32 # WATCH
+    dim: 64 # WATCH
+    dim_mults: [1, 2] # WATCH
+    kernel_size: 5
+    n_groups: 8
+    smaller_encoder: False
+    cond_predict_scale: True
+    action_dim: ${action_dim}
+    cond_dim: ${eval:'${embedding_dim} * ${cond_steps}'}
+  critic:
+    _target_: model.common.critic.GraphCritic
+    backbone:
+      _target_: model.common.AttentionNet.GraphAttentionEncoder5 # WATCH
+      node_dim: ${node_dim}
+      pos_dim: ${pos_dim}
+      agent_dim: ${agent_dim}
+      embedding_dim: ${embedding_dim}
+    mlp_dims: [256, 256, 256]
+    activation_type: Mish
+    residual_style: True
+    cond_dim: ${eval:'${embedding_dim} * ${cond_steps}'}
+  ft_denoising_steps: ${ft_denoising_steps}
+  horizon_steps: ${horizon_steps}
+  obs_dim: ${embedding_dim}
+  action_dim: ${action_dim}
+  denoising_steps: ${denoising_steps}
+  device: ${device}

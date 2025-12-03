@@ -1,0 +1,11 @@
+**.npz
+**.npy
+**/__pycache__/*
+**/gifs/*
+**/dataset/*
+**/train_results/*
+**/test_results/*
+**/logs/*
+**/wandb/*
+**/.vscode/*
+**/**.egg-info/*

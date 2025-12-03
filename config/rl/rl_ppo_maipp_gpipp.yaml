@@ -1,0 +1,102 @@
+defaults:
+  - _self_
+hydra:
+  run:
+    dir: ${logdir}
+_target_: execution.driver.rl_driver.RLDriver
+
+name: ${env_name}_rl_ppo_maipp
+logdir: logs/rl/${name}/intentmaipp
+
+# General Params
+seed: 42
+device: cuda
+env_name: gp_ipp
+
+wandb:
+  entity: # ${oc.env:DPPO_WANDB_ENTITY}
+  project: ${env_name}-maipp
+  run: ${now:%H-%M-%S}_${name}
+
+# Params for Driver
+num_gpu: 1
+num_meta_agent: 20 # number of ray processes
+num_episode_per_train_step: 20 # WATCH
+num_agent: 3 # number of agents in each environment
+num_episode: # unused here
+save_image: False # Not used, save gif if eval
+gifs_path: ${logdir}/gifs
+
+train:
+  n_train_itr: 100000 # WATCH
+  gamma: 0.999
+  lr: 5e-5 # WATCH
+  lr_decay_step_size: 32
+  lr_decay_gamma: 0.96
+  save_model_freq: 10
+  val_freq: 10
+  # PPO specific
+  gae_lambda: 0.95
+  batch_size: 256 # WATCH
+  accumulated_update_per_epoch: null # WATCH
+  logprob_batch_size: 128
+  update_epochs: 8 # WATCH
+  ppo_clip: 0.2
+  vf_coef: 0.5
+  ent_coef: 0.0
+
+runner:
+  _target_: execution.runner.rl_runner.RLRunner
+
+worker:
+  _target_: execution.worker.rl_maipp_worker.RLMAIPPWorker
+  num_agent: ${num_agent}
+  model: ${model}
+  num_paths: 8 # 8 # WATCH
+  sampling_steps: 5 # WATCH
+  k_size: ${k_size}
+  embedding_size: ${embedding_dim}
+  budget: 3.0 # budget for each agent 3
+  steps: 256 # Maximum number of steps for each agent
+  device: ${device}
+  save_image: ${save_image}
+  gifs_path: ${gifs_path}
+  eval: False
+
+# Params describing PRM (Env)
+k_size: 20 # PRM k-nearest neighbors
+sample_size: 200 # Env PRM nodes (Total = sample_size + (start, destination))
+
+# Params describing Agent Behavior (Env)
+measurement_interval: 0.1 # distance between measurements 0.2
+
+# High Interest (Env)
+threshold: 0.4 # threshold to determine high interest for GP
+beta: 1 # confidence interval to determine high interest for GP 
+sensor_range: 0.25 # sensor range for GP observation
+
+env:
+  _target_: classes.env.env.Env
+  num_agent: ${num_agent}
+  sample_size: ${sample_size}
+  measurement_interval: ${measurement_interval}
+  k_size: ${k_size}
+  start: # None
+  destination: # None
+  obstacle: []
+  save_image: ${save_image}
+  seed: # None
+  adaptive_area: True
+  threshold: ${threshold} # threshold to determine high interest for GP
+  beta: ${beta} # confidence interval to determine high interest for GP
+  sensor_range: ${sensor_range} # sensor range for GP observation
+  gaussian_num: [8, 12] # range of number of gaussians for underlying distribution
+
+# Params for Model
+node_dim: 5 # Node inputs Dimension
+embedding_dim: 128 # Embedding Dimension for Graph Attention Encoder
+
+model:
+  _target_: model.common.AttentionNet.AttentionNet
+  input_dim: ${node_dim}
+  embedding_dim: ${embedding_dim}

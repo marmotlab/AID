@@ -1,0 +1,21 @@
+name: env_aid_maipp
+channels:
+  - defaults
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pytorch==2.4.0
+  - pytorch-cuda=12.4
+  - numpy
+  - imageio
+  - scipy
+  - scikit-learn
+  - shapely
+  - matplotlib
+  - tqdm
+  - hydra-core==1.3.2
+  - omegaconf==2.3.0
+  - einops
+  - ray-core

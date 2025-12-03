@@ -1,0 +1,122 @@
+defaults:
+  - _self_
+hydra:
+  run:
+    dir: ${logdir}
+_target_: execution.driver.eval_driver.EvalDriver
+
+name: ${env_name}_${data_type}_eval_ft_ppo_diffusion
+logdir: logs/eval/${name}/ft_rigtreedata
+
+# General Params
+seed: 42
+device: cuda:0
+env_name: gp_ipp
+data_type: delta # Action collected: abs (absolute pos), delta (delta pos), theta (angle)
+
+# Params for Driver
+train_path: logs/finetune/gp_ipp_delta_ft_diffusion_unet_img_tp8_ta2_td20_tdf10/ft_rigtreedata
+base_policy_path: ${train_path}/checkpoint/state_290.pt
+normalization_path: null # ${train_path}/normalization.npz
+
+num_gpu: 1
+num_meta_agent: 6 # number of ray processes
+num_agent: 3 # number of agents in each environment
+num_episode: 100 # number of episodes
+num_run: 1 # number of runs
+save_image: False
+gifs_path: ${logdir}/gifs
+
+runner:
+  _target_: execution.runner.eval_runner.EvalRunner
+
+worker:
+  _target_: execution.worker.eval_diffusion_worker.EvalDiffusionWorker
+  num_agent: ${num_agent}
+  diffusion_model: ${model}
+  cond_steps: ${cond_steps}
+  num_paths: 5
+  action_steps: ${act_steps}
+  budget: 3 # range of budget for each agent [2.999, 3]
+  steps: 256 # Maximum number of steps for each agent
+  data_type: ${data_type}
+  normalization_path: ${normalization_path}
+  step_size: 0.1 # distance travelled (only if data_type is theta)
+  device: ${device}
+  save_image: ${save_image}
+  gifs_path: ${gifs_path}
+
+# Params describing PRM
+k_size: 20 # PRM k-nearest neighbors
+sample_size: 200 # Env PRM nodes (Total = sample_size + (start, destination))
+
+# Params describing Agent Behavior
+measurement_interval: 0.1 # distance between measurements 0.2
+
+# High Interest (Env)
+threshold: 0.4 # threshold to determine high interest for GP
+beta: 1 # confidence interval to determine high interest for GP 
+sensor_range: 0.25 # sensor range for GP observation
+
+env:
+  _target_: classes.env.env.Env
+  num_agent: ${num_agent}
+  sample_size: ${sample_size}
+  measurement_interval: ${measurement_interval}
+  k_size: ${k_size}
+  start: # None
+  destination: # None
+  obstacle: []
+  save_image: ${save_image}
+  seed: # None
+  adaptive_area: True
+  threshold: ${threshold} # threshold to determine high interest for GP
+  beta: ${beta} # confidence interval to determine high interest for GP
+  sensor_range: ${sensor_range} # sensor range for GP observation
+  gaussian_num: [8, 12] # range of number of gaussians for underlying distribution
+
+# Params for Diffusion Model
+node_dim: 5 # Node inputs Dimension
+pos_dim: 32 # Pos Encoding Dimension
+agent_dim: 4 # Agent inputs dimension
+embedding_dim: 64 # Embedding Dimension for Graph Attention Encoder # WATCH
+action_dim: 2 # Action Dimension 2 for abs, delta, 1 for theta
+cond_steps: 2 # number of steps to condition on # WATCH
+horizon_steps: 8 # planning horizon
+act_steps: 2 # number of steps to take action
+denoising_steps: 20 # WATCH
+ft_denoising_steps: 10 # not using FT # WATCH
+use_ddim: False # WATCH
+ddim_steps: 5 # WATCH
+
+model:
+  _target_: model.diffusion.diffusion_eval.DiffusionEval
+  ft_denoising_steps: ${ft_denoising_steps}
+  predict_epsilon: True
+  denoised_clip_value: 1.0
+  randn_clip_value: 3
+  use_ddim: ${use_ddim}
+  ddim_steps: ${ddim_steps}
+  network_path: ${base_policy_path}
+  network:
+    _target_: model.diffusion.unet.GraphUnet1D
+    backbone:
+      _target_: model.common.AttentionNet.GraphAttentionEncoder5 # WATCH
+      node_dim: ${node_dim}
+      pos_dim: ${pos_dim}
+      agent_dim: ${agent_dim}
+      embedding_dim: ${embedding_dim}
+    diffusion_step_embed_dim: 32 # WATCH
+    dim: 64 # WATCH
+    dim_mults: [1, 2] # WATCH
+    kernel_size: 5
+    n_groups: 8
+    smaller_encoder: False
+    cond_predict_scale: True
+    action_dim: ${action_dim}
+    cond_dim: ${eval:'${embedding_dim} * ${cond_steps}'}
+  horizon_steps: ${horizon_steps}
+  obs_dim: ${embedding_dim}
+  action_dim: ${action_dim}
+  denoising_steps: ${denoising_steps}
+  device: ${device}
