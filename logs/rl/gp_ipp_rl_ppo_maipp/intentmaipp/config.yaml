@@ -1,0 +1,82 @@
+_target_: execution.driver.rl_driver.RLDriver
+name: gp_ipp_rl_ppo_maipp
+logdir: logs/rl/gp_ipp_rl_ppo_maipp/2025-11-07_22-12-27_42
+seed: 42
+device: cuda:0
+env_name: gp_ipp
+wandb:
+  entity: null
+  project: gp_ipp-maipp
+  run: 22-12-27_gp_ipp_rl_ppo_maipp
+num_gpu: 1
+num_meta_agent: 20
+num_episode_per_train_step: 50
+num_agent: 3
+num_episode: null
+save_image: false
+gifs_path: logs/rl/gp_ipp_rl_ppo_maipp/2025-11-07_22-12-27_42/gifs
+train:
+  n_train_itr: 100000
+  gamma: 0.999
+  lr: 5.0e-05
+  lr_decay_step_size: 32
+  lr_decay_gamma: 0.96
+  save_model_freq: 10
+  val_freq: 10
+  gae_lambda: 0.95
+  batch_size: 512
+  accumulated_update_per_epoch: 1
+  logprob_batch_size: 128
+  update_epochs: 8
+  ppo_clip: 0.2
+  vf_coef: 0.5
+  ent_coef: 0.0
+runner:
+  _target_: execution.runner.rl_runner.RLRunner
+worker:
+  _target_: execution.worker.rl_maipp_worker.RLMAIPPWorker
+  num_agent: 3
+  model:
+    _target_: model.common.AttentionNet.AttentionNet
+    input_dim: 5
+    embedding_dim: 128
+  num_paths: 8
+  sampling_steps: 5
+  k_size: 20
+  embedding_size: 128
+  budget: 3.0
+  steps: 256
+  device: cuda:0
+  save_image: false
+  gifs_path: logs/rl/gp_ipp_rl_ppo_maipp/2025-11-07_22-12-27_42/gifs
+  eval: false
+k_size: 20
+sample_size: 200
+measurement_interval: 0.1
+threshold: 0.4
+beta: 1
+sensor_range: 0.25
+env:
+  _target_: classes.env.env.Env
+  num_agent: 3
+  sample_size: 200
+  measurement_interval: 0.1
+  k_size: 20
+  start: null
+  destination: null
+  obstacle: []
+  save_image: false
+  seed: null
+  adaptive_area: true
+  threshold: 0.4
+  beta: 1
+  sensor_range: 0.25
+  gaussian_num:
+  - 8
+  - 12
+node_dim: 5
+embedding_dim: 128
+model:
+  _target_: model.common.AttentionNet.AttentionNet
+  input_dim: 5
+  embedding_dim: 128

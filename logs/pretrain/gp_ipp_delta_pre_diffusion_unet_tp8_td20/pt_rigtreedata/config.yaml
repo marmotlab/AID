@@ -1,0 +1,66 @@
+_target_: train.pretrain.train_diffusion_agent.TrainDiffusionAgent
+name: gp_ipp_delta_pre_diffusion_unet_tp8_td20
+logdir: logs/pretrain/gp_ipp_delta_pre_diffusion_unet_tp8_td20/2025-11-13_10-06-57
+seed: 42
+device: cuda:0
+env_name: gp_ipp
+data_type: delta
+wandb:
+  entity: null
+  project: gp_ipp-pretrain
+  run: 10-06-57_gp_ipp_delta_pre_diffusion_unet_tp8_td20
+train_dataset_path: logs/dataset/gp_ipp_delta_dataset_rigtree/rel-coord-input_1000_0.25sensor_0.1int_new/gp_ipp_delta_dataset_rigtree.npz
+train:
+  n_epochs: 1000
+  batch_size: 512
+  learning_rate: 0.0001
+  weight_decay: 1.0e-06
+  lr_scheduler:
+    first_cycle_steps: 1000
+    warmup_steps: 100
+    min_lr: 1.0e-05
+  save_model_freq: 50
+train_dataset:
+  _target_: classes.dataset.sequence.StitchedSequenceGraphDataset
+  dataset_path: logs/dataset/gp_ipp_delta_dataset_rigtree/rel-coord-input_1000_0.25sensor_0.1int_new/gp_ipp_delta_dataset_rigtree.npz
+  horizon_steps: 8
+  cond_steps: 2
+  device: cuda:0
+node_dim: 5
+pos_dim: 32
+agent_dim: 4
+embedding_dim: 64
+action_dim: 2
+cond_steps: 2
+horizon_steps: 8
+denoising_steps: 20
+model:
+  _target_: model.diffusion.diffusion.DiffusionModel
+  predict_epsilon: true
+  denoised_clip_value: 1.0
+  network:
+    _target_: model.diffusion.unet.GraphUnet1D
+    backbone:
+      _target_: model.common.AttentionNet.GraphAttentionEncoder5
+      node_dim: 5
+      pos_dim: 32
+      agent_dim: 4
+      embedding_dim: 64
+    diffusion_step_embed_dim: 32
+    dim: 64
+    dim_mults:
+    - 1
+    - 2
+    kernel_size: 5
+    n_groups: 8
+    smaller_encoder: false
+    cond_predict_scale: true
+    action_dim: 2
+    cond_dim: 128
+  horizon_steps: 8
+  obs_dim: 64
+  action_dim: 2
+  denoising_steps: 20
+  device: cuda:0
+ema:
+  decay: 0.995

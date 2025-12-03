@@ -1,0 +1,227 @@
+_target_: execution.driver.ft_driver.FinetuneDriver
+name: gp_ipp_delta_ft_diffusion_unet_img_tp8_ta2_td20_tdf10
+logdir: logs/finetune/gp_ipp_delta_ft_diffusion_unet_img_tp8_ta2_td20_tdf10/2025-11-15_11-10-07_42
+seed: 42
+device: cuda
+env_name: gp_ipp
+data_type: delta
+wandb:
+  entity: null
+  project: gp_ipp-finetune-newreward
+  run: 11-10-07_gp_ipp_delta_ft_diffusion_unet_img_tp8_ta2_td20_tdf10
+train_path: logs/pretrain/gp_ipp_delta_pre_diffusion_unet_tp8_td20/ge5_rel-coord-input_1000_maippdata_0.25sensor_0.1int_2cond_nonorm
+base_policy_path: logs/pretrain/gp_ipp_delta_pre_diffusion_unet_tp8_td20/ge5_rel-coord-input_1000_maippdata_0.25sensor_0.1int_2cond_nonorm/checkpoint/state_500.pt
+normalization_path: null
+num_gpu: 2
+num_meta_agent: 10
+num_episode_per_train_step: 50
+num_agent: 3
+num_episode: null
+save_image: false
+gifs_path: logs/finetune/gp_ipp_delta_ft_diffusion_unet_img_tp8_ta2_td20_tdf10/2025-11-15_11-10-07_42/gifs
+train:
+  n_train_itr: 501
+  n_critic_warmup_itr: 2
+  gamma: 0.999
+  actor_lr: 1.0e-05
+  actor_weight_decay: 0
+  actor_lr_scheduler:
+    first_cycle_steps: 501
+    warmup_steps: 10
+    min_lr: 1.0e-05
+  critic_lr: 0.0001
+  critic_weight_decay: 0
+  critic_lr_scheduler:
+    first_cycle_steps: 501
+    warmup_steps: 10
+    min_lr: 0.0001
+  save_model_freq: 10
+  val_freq: 10
+  reward_scale_running: false
+  reward_scale_const: 1.0
+  gae_lambda: 0.95
+  batch_size: 400
+  accumulated_update_per_epoch: 1
+  logprob_batch_size: 128
+  update_epochs: 10
+  vf_coef: 0.5
+  target_kl: 1
+runner:
+  _target_: execution.runner.ft_runner.FinetuneRunner
+worker:
+  _target_: execution.worker.ft_diffusion_worker.FinetuneDiffusionWorker
+  num_agent: 3
+  diffusion_model:
+    _target_: model.diffusion.diffusion_ppo.PPODiffusion
+    gamma_denoising: 0.99
+    clip_ploss_coef: 0.001
+    clip_ploss_coef_base: 0.001
+    clip_ploss_coef_rate: 3
+    randn_clip_value: 3
+    min_sampling_denoising_std: 0.05
+    min_logprob_denoising_std: 0.1
+    use_ddim: false
+    ddim_steps: 10
+    learn_eta: false
+    eta:
+      base_eta: 1
+      input_dim: 64
+      mlp_dims:
+      - 256
+      - 256
+      action_dim: 2
+      min_eta: 0.1
+      max_eta: 1.0
+      _target_: model.diffusion.eta.EtaFixed
+    network_path: logs/pretrain/gp_ipp_delta_pre_diffusion_unet_tp8_td20/ge5_rel-coord-input_1000_maippdata_0.25sensor_0.1int_2cond_nonorm/checkpoint/state_500.pt
+    actor:
+      _target_: model.diffusion.unet.GraphUnet1D
+      backbone:
+        _target_: model.common.AttentionNet.GraphAttentionEncoder5
+        node_dim: 5
+        pos_dim: 32
+        agent_dim: 4
+        embedding_dim: 64
+      diffusion_step_embed_dim: 32
+      dim: 64
+      dim_mults:
+      - 1
+      - 2
+      kernel_size: 5
+      n_groups: 8
+      smaller_encoder: false
+      cond_predict_scale: true
+      action_dim: 2
+      cond_dim: 128
+    critic:
+      _target_: model.common.critic.GraphCritic
+      backbone:
+        _target_: model.common.AttentionNet.GraphAttentionEncoder5
+        node_dim: 5
+        pos_dim: 32
+        agent_dim: 4
+        embedding_dim: 64
+      mlp_dims:
+      - 256
+      - 256
+      - 256
+      activation_type: Mish
+      residual_style: true
+      cond_dim: 128
+    ft_denoising_steps: 10
+    horizon_steps: 8
+    obs_dim: 64
+    action_dim: 2
+    denoising_steps: 20
+    device: cuda
+  cond_steps: 2
+  num_paths: 5
+  action_steps: 2
+  budget: 3
+  steps: 256
+  data_type: delta
+  normalization_path: null
+  step_size: 0.1
+  device: cuda
+  save_image: false
+  gifs_path: logs/finetune/gp_ipp_delta_ft_diffusion_unet_img_tp8_ta2_td20_tdf10/2025-11-15_11-10-07_42/gifs
+  eval: false
+k_size: 20
+sample_size: 200
+measurement_interval: 0.1
+threshold: 0.4
+beta: 1
+sensor_range: 0.25
+env:
+  _target_: classes.env.env.Env
+  num_agent: 3
+  sample_size: 200
+  measurement_interval: 0.1
+  k_size: 20
+  start: null
+  destination: null
+  obstacle: []
+  save_image: false
+  seed: null
+  adaptive_area: true
+  threshold: 0.4
+  beta: 1
+  sensor_range: 0.25
+  gaussian_num:
+  - 8
+  - 12
+node_dim: 5
+pos_dim: 32
+agent_dim: 4
+embedding_dim: 64
+action_dim: 2
+cond_steps: 2
+horizon_steps: 8
+act_steps: 2
+reward_horizon: 8
+denoising_steps: 20
+ft_denoising_steps: 10
+use_ddim: false
+model:
+  _target_: model.diffusion.diffusion_ppo.PPODiffusion
+  gamma_denoising: 0.99
+  clip_ploss_coef: 0.001
+  clip_ploss_coef_base: 0.001
+  clip_ploss_coef_rate: 3
+  randn_clip_value: 3
+  min_sampling_denoising_std: 0.05
+  min_logprob_denoising_std: 0.1
+  use_ddim: false
+  ddim_steps: 10
+  learn_eta: false
+  eta:
+    base_eta: 1
+    input_dim: 64
+    mlp_dims:
+    - 256
+    - 256
+    action_dim: 2
+    min_eta: 0.1
+    max_eta: 1.0
+    _target_: model.diffusion.eta.EtaFixed
+  network_path: logs/pretrain/gp_ipp_delta_pre_diffusion_unet_tp8_td20/ge5_rel-coord-input_1000_maippdata_0.25sensor_0.1int_2cond_nonorm/checkpoint/state_500.pt
+  actor:
+    _target_: model.diffusion.unet.GraphUnet1D
+    backbone:
+      _target_: model.common.AttentionNet.GraphAttentionEncoder5
+      node_dim: 5
+      pos_dim: 32
+      agent_dim: 4
+      embedding_dim: 64
+    diffusion_step_embed_dim: 32
+    dim: 64
+    dim_mults:
+    - 1
+    - 2
+    kernel_size: 5
+    n_groups: 8
+    smaller_encoder: false
+    cond_predict_scale: true
+    action_dim: 2
+    cond_dim: 128
+  critic:
+    _target_: model.common.critic.GraphCritic
+    backbone:
+      _target_: model.common.AttentionNet.GraphAttentionEncoder5
+      node_dim: 5
+      pos_dim: 32
+      agent_dim: 4
+      embedding_dim: 64
+    mlp_dims:
+    - 256
+    - 256
+    - 256
+    activation_type: Mish
+    residual_style: true
+    cond_dim: 128
+  ft_denoising_steps: 10
+  horizon_steps: 8
+  obs_dim: 64
+  action_dim: 2
+  denoising_steps: 20
+  device: cuda
