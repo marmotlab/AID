@@ -1,0 +1,72 @@
+defaults:
+  - _self_
+hydra:
+  run:
+    dir: ${logdir}
+_target_: execution.driver.dataset_driver.DatasetDriver
+
+name: ${env_name}_${data_type}_dataset_rigtree
+# logdir: logs/dataset/${name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+logdir: logs/dataset/${name}/${num_episode}_${sensor_range}sensor_${measurement_interval}int
+
+# General Params
+seed: 42
+device: cpu
+env_name: gp_ipp
+data_type: delta # Action collected: abs (absolute pos), delta (delta pos), theta (angle)
+
+# Params for Driver
+num_gpu: 0
+num_meta_agent: 6 # number of ray processes
+num_agent: 3 # number of agents in each environment
+num_episode: 1000 # number of episodes # 250
+save_image: False
+gifs_path: ${logdir}/gifs
+
+runner:
+  _target_: execution.runner.dataset_runner.DatasetRunner
+
+worker:
+  _target_: execution.worker.dataset_rigtree_worker.DatasetRIGTreeWorker
+  num_agent: ${num_agent}
+  budget: 3 # budget for each agent 3
+  radius: 0.5 # radius to extend nearby nodes for rigtree 0.5
+  branch_length: 0.1 # step size for RRT 0.1
+  rrt_iterations: 400 # Number of nodes in the rigtree 400
+  action_horizon: 0.21 # portion of planned trajectory executed by the agent 0.21
+  trajectory_length: [0.3, 0.4] # length of planned trajectory [0.9, 1.0]
+  trajectory_intent: True # True use predicted traj for SGA, False use only executed portion
+  steps: 256 # Maximum number of steps for each agent
+  data_type: ${data_type}
+  device: ${device}
+  save_image: ${save_image}
+  gifs_path: ${gifs_path}
+
+# Params describing PRM (Env)
+k_size: 20 # PRM k-nearest neighbors
+sample_size: 200 # Env PRM nodes (Total = sample_size + (start, destination))
+
+# Params describing Agent Behavior (Env)
+measurement_interval: 0.1 # distance between measurements 0.2
+
+# High Interest (Env)
+threshold: 0.4 # threshold to determine high interest for GP
+beta: 1 # confidence interval to determine high interest for GP 
+sensor_range: 0.25 # sensor range for GP observation
+
+env:
+  _target_: classes.env.env.Env
+  num_agent: ${num_agent}
+  sample_size: ${sample_size}
+  measurement_interval: ${measurement_interval}
+  k_size: ${k_size}
+  start: # None
+  destination: # None
+  obstacle: []
+  save_image: ${save_image}
+  seed: # None
+  adaptive_area: True
+  threshold: ${threshold} # threshold to determine high interest for GP
+  beta: ${beta} # confidence interval to determine high interest for GP
+  sensor_range: ${sensor_range} # sensor range for GP observation
+  gaussian_num: [8, 12] # range of number of gaussians for underlying distribution

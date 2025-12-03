@@ -1,0 +1,81 @@
+defaults:
+  - _self_
+hydra:
+  run:
+    dir: ${logdir}
+_target_: execution.driver.dataset_driver.DatasetDriver
+
+name: ${env_name}_${data_type}_dataset_maipp
+# logdir: logs/dataset/${name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+logdir: logs/dataset/${name}/${num_episode}_${sensor_range}sensor_${measurement_interval}int
+
+# General Params
+seed: 42
+device: cuda:0
+env_name: gp_ipp
+data_type: delta # Action collected: abs (absolute pos), delta (delta pos), theta (angle)
+
+# Params for Driver
+num_gpu: 1
+num_meta_agent: 6 # number of ray processes
+num_agent: 3 # number of agents in each environment
+num_episode: 1000 # number of episodes # 250
+save_image: False
+gifs_path: ${logdir}/gifs
+
+runner:
+  _target_: execution.runner.dataset_runner.DatasetRunner
+
+worker:
+  _target_: execution.worker.dataset_maipp_worker.DatasetMAIPPWorker
+  num_agent: ${num_agent}
+  model: ${model}
+  weights_path: logs/rl/gp_ipp_rl_ppo_maipp/intentmaipp/checkpoint/state_170.pt
+  num_paths: 8
+  sampling_steps: 5
+  k_size: ${k_size}
+  embedding_size: ${embedding_dim}
+  budget: 3 # budget for each agent 3
+  steps: 256 # Maximum number of steps for each agent
+  data_type: ${data_type}
+  device: ${device}
+  save_image: ${save_image}
+  gifs_path: ${gifs_path}
+
+# Params describing PRM (Env)
+k_size: 20 # PRM k-nearest neighbors
+sample_size: 200 # Env PRM nodes (Total = sample_size + (start, destination))
+
+# Params describing Agent Behavior (Env)
+measurement_interval: 0.1 # distance between measurements 0.2
+
+# High Interest (Env)
+threshold: 0.4 # threshold to determine high interest for GP
+beta: 1 # confidence interval to determine high interest for GP 
+sensor_range: 0.25 # sensor range for GP observation
+
+env:
+  _target_: classes.env.env.Env
+  num_agent: ${num_agent}
+  sample_size: ${sample_size}
+  measurement_interval: ${measurement_interval}
+  k_size: ${k_size}
+  start: # None
+  destination: # None
+  obstacle: []
+  save_image: ${save_image}
+  seed: # None
+  adaptive_area: True
+  threshold: ${threshold} # threshold to determine high interest for GP
+  beta: ${beta} # confidence interval to determine high interest for GP
+  sensor_range: ${sensor_range} # sensor range for GP observation
+  gaussian_num: [8, 12] # range of number of gaussians for underlying distribution
+
+# Params for Model
+node_dim: 5 # Node inputs Dimension
+embedding_dim: 128 # Embedding Dimension for Graph Attention Encoder
+
+model:
+  _target_: model.common.AttentionNet.AttentionNet
+  input_dim: ${node_dim}
+  embedding_dim: ${embedding_dim}

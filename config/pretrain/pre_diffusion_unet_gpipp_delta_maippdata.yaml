@@ -6,7 +6,7 @@ hydra:
 _target_: train.pretrain.train_diffusion_agent.TrainDiffusionAgent
 
 name: ${env_name}_${data_type}_pre_diffusion_unet_tp${horizon_steps}_td${denoising_steps}
-logdir: logs/pretrain/${name}/pt_maippdata
+logdir: logs/pretrain/${name}/${now:%Y-%m-%d}_${now:%H-%M-%S}_pt_maippdata
 
 # General Params
 seed: 42
@@ -16,7 +16,7 @@ data_type: delta # Action collected: abs (absolute pos), delta (delta pos), thet
 
 wandb:
   entity: # ${oc.env:DPPO_WANDB_ENTITY}
-  project: ${env_name}-pretrain
+  project: ${env_name}-pretrain-aid
   run: ${now:%H-%M-%S}_${name}
 
 # Params for Driver

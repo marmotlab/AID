@@ -6,7 +6,7 @@ hydra:
 _target_: execution.driver.ft_driver.FinetuneDriver
 
 name: ${env_name}_${data_type}_ft_diffusion_unet_img_tp${horizon_steps}_ta${act_steps}_td${denoising_steps}_tdf${ft_denoising_steps}
-logdir: logs/finetune/${name}/ft_maippdata
+logdir: logs/finetune/${name}/${now:%Y-%m-%d}_${now:%H-%M-%S}_ft_maippdata
 
 # General Params
 seed: 42
