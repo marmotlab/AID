@@ -2,12 +2,11 @@
 
 <div align="center">
 
-<img src="assets/aid_main.gif" width="90%"/>
-
-
 [![arXiv](https://img.shields.io/badge/arXiv-2512.02535-red?style=flat&logo=arxiv)](https://arxiv.org/abs/2512.02535)
 [![Linux platform](https://img.shields.io/badge/Platform-linux--64-orange.svg)](https://ubuntu.com/blog/tag/22-04-lts)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)]()
+
+<img src="assets/aid_main.gif" width="90%"/>
 
 </div>
 
@@ -101,10 +100,7 @@ If you find this work useful, please consider citing us and the following works:
 }
 ```
 
-We build on the codebase from [IntentMAIPP](https://github.com/marmotlab/MAIPP) and [DPPO](https://github.com/irom-princeton/dppo):
-
-+ Ren, A.Z., Lidard, J., Ankile, L.L., Simeonov, A., Agrawal, P., Majumdar, A., Burchfiel, B., Dai, H., Simchowitz, M.: Diffusion policy policy optimization.
-
++ Diffusion policy policy optimization
 
 ```bibtex
 @inproceedings{dppo2024,
@@ -114,3 +110,5 @@ We build on the codebase from [IntentMAIPP](https://github.com/marmotlab/MAIPP) 
     year={2024}
 }
 ```
+
+We build on the codebase from [IntentMAIPP](https://github.com/marmotlab/MAIPP) and [DPPO](https://github.com/irom-princeton/dppo).
