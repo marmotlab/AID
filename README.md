@@ -11,34 +11,35 @@
 </div>
 
 ---
-### Installation
 
-1. **Create the conda environment**:
+## Introduction
+Efficient information gathering in large-scale, time-critical scenarios (e.g. search and rescue or environmental monitoring) requires the coordinated effort of multiple agents. **AID (Agent Intent from Diffusion)** is a fully decentralized framework designed for Multi-Agent Informative Path Planning (MAIPP), addressing the challenge of maximizing collective information gain under strict constraints. While previous methods rely on computationally expensive autoregressive models to predict agent "intent," AID leverages the power of generative AI to produce robust long-term plans.
 
-	```bash
-	conda create -n env_aid python=3.12 -y
-	```
+AID utilizes **diffusion models** to generate long-horizon trajectories in a non-autoregressive manner. By employing a two-stage pipeline—first performing behavior cloning on trajectories from existing planners and then fine-tuning via **Diffusion Policy Policy Optimization (DPPO)**—AID inherits expert behaviors while learning superior coordination strategies through online reward feedback.
 
-2. **Activate the environment**:
+**Key Features:**
+*   **Non-Autoregressive Planning:** Leverages diffusion models to generate stable, long-term trajectories without the computational cost of autoregressive steps.
+*   **Two-Stage Learning:** Combines behavior cloning from expert demonstrations with reinforcement learning fine-tuning to optimize policy performance.
+*   **Superior Efficiency:** Achieves up to **4x faster execution** and **17% increased information gain** compared to baseline MAIPP planners.
+*   **Scalable Coordination:** A fully decentralized framework that scales effectively to larger numbers of agents while maintaining robust cooperation.
 
-	```bash
-	conda activate env_aid
-	```
+<div align="center">
+<img src="assets/AID_Pipeline.drawio.png" width="75%"/>
+</div>
 
-3. **Clone this repository:**
-   ```bash
-   git clone https://github.com/marmotlab/AID.git
-   ```
-
-4. **Install this repository in editable mode** (from the repo root):
-
-	```bash
-    cd AID
-	pip install -e .
-	```
 ---
 
-### Usage
+## Usage
+### Requirements
+Install the following dependencies in a conda environment as shown below:
+```bash
+git clone https://github.com/marmotlab/AID.git && cd AID
+conda create -n env_aid python=3.12 -y
+conda activate env_aid
+pip install -e .
+```
+
+### Running Experiments
 **Dataset Collection**
 ```bash
 python script/run.py --config-name dataset_rigtree_gpipp_delta.yaml --config-dir config/dataset
