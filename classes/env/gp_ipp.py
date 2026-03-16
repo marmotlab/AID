@@ -125,19 +125,22 @@ class GaussianProcessForIPP():
 
         X = np.array(self.observed_points)
 
-        fig = Figure(figsize=(15, 10))
+        fig = Figure(figsize=(12, 8))
 
         ax1 = fig.add_subplot(2, 3, 1)
-        ax1.set_title('Predict mean')
-        ax1.pcolormesh(X0p, X1p, y_pred, shading='auto', vmin=0, vmax=1, edgecolors="face")
+        ax1.set_title('(1) Predicted Mean')
+        im1 = ax1.pcolormesh(X0p, X1p, y_pred, shading='auto', cmap='viridis', vmin=0, vmax=1, edgecolors="face")
+        # fig.colorbar(im1, ax=ax1) #, label='Value')
 
         ax2 = fig.add_subplot(2, 3, 2)
-        ax2.set_title('Ground truth')
-        ax2.pcolormesh(X0p, X1p, y_true.reshape(30, 30), shading='auto', vmin=0, vmax=1, edgecolors="face")
+        ax2.set_title('(2) Ground Truth')
+        im2 = ax2.pcolormesh(X0p, X1p, y_true.reshape(30, 30), shading='auto', cmap='viridis', vmin=0, vmax=1, edgecolors="face")
+        # fig.colorbar(im2, ax=ax2) #, label='Value')
 
         ax4 = fig.add_subplot(2, 3, 4)
-        ax4.set_title('Predict std')
-        ax4.pcolormesh(X0p, X1p, std, shading='auto', vmin=0, vmax=1, edgecolors="face")
+        ax4.set_title('(4) Predicted Std Dev')
+        im4 = ax4.pcolormesh(X0p, X1p, std, shading='auto', cmap='viridis', vmin=0, vmax=1, edgecolors="face")
+        # fig.colorbar(im4, ax=ax4) #, label='Std Dev')
 
         return fig
 

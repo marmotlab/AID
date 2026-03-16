@@ -101,7 +101,7 @@ class RIGTreeAgent(Agent):
 
         # Get all nodes within trajectory length
         for node in nodes:
-            if self.trajectory_length[0] < node.cost < self.trajectory_length[1]:
+            if self.trajectory_length[0] - 1e-3 <= node.cost <= self.trajectory_length[1] + 1e-3:
                 destination_list.append(node)
 
         best_cov_trace = float("infinity")

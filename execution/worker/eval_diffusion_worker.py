@@ -8,6 +8,10 @@ import imageio
 import numpy as np
 from matplotlib import cm
 from matplotlib import pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
+
 from scipy.stats import multivariate_normal
 from collections import deque
 
@@ -117,7 +121,7 @@ class EvalDiffusionWorker:
             gaussian_cov = copy.deepcopy(self.shared_memory["intent_std"])
 
         if self.save_image:
-            self.plot(obs, gaussian_mean, gaussian_cov, planned_trajectory=[], all_planned_trajectory=[])
+            self.plot(obs, gaussian_mean, gaussian_cov, self.current_position, planned_trajectory=[], all_planned_trajectory=[])
 
         # Init queues
         self.node_inputs_queue = deque(maxlen=self.cond_steps)
@@ -189,6 +193,8 @@ class EvalDiffusionWorker:
 
             executed_path = best_planned_path[:self.action_steps]
 
+            original_position = self.current_position.copy()
+
             accumulated_reward = 0
             done = False
             for next_coord in executed_path:
@@ -220,8 +226,7 @@ class EvalDiffusionWorker:
 
                 # Plotting
                 if self.save_image:
-                    self.plot(obs, gaussian_mean, gaussian_cov, planned_trajectory=best_planned_path, all_planned_trajectory=planned_path)
-                    # self.plot_self_intent(obs, all_planned_trajectory=planned_path, step=step, mean=gaussian_mean[f"{self.agent_id}"], cov=gaussian_cov[f"{self.agent_id}"])
+                    self.plot(obs, gaussian_mean, gaussian_cov, original_position, planned_trajectory=best_planned_path, all_planned_trajectory=planned_path)
 
                 if done:
                     break
@@ -306,59 +311,7 @@ class EvalDiffusionWorker:
                 distance += np.linalg.norm(t - agent_route[i - 1])
         return distance
     
-    def plot_self_intent(self, obs, all_planned_trajectory, step, mean, cov):        
-        colorlist = ['black', 'darkred', 'darkolivegreen', "purple", "gold"]
-        agent_color = colorlist[self.agent_id]
-
-        current_position = obs["current_position"] # (2,)
-
-        from matplotlib.figure import Figure
-        fig = Figure(figsize=(10, 10))
-
-        ax1 = fig.add_subplot(1, 1, 1)
-
-        for i, planned_trajectory in enumerate(all_planned_trajectory):
-            # Plot own intent route
-            x = [current_position[0]]
-            y = [current_position[1]]
-            planned_x = [item[0] for item in planned_trajectory]
-            planned_y = [item[1] for item in planned_trajectory]
-            x += planned_x
-            y += planned_y
-            ax1.plot(x, y, c=agent_color, linewidth=4, zorder=4, alpha=0.7)
-            ax1.scatter(planned_x, planned_y, c=agent_color, marker='o', s=8 ** 2, zorder=5) # Planned Path
-            ax1.scatter(planned_x[-1], planned_y[-1], c=agent_color, marker='s', s=20 ** 2, zorder=6) # Planned Path
-        ax1.scatter(x[0], y[0], c=agent_color, marker='*', s=30 ** 2, zorder=6) # Start Position
-        ax1.set_xlim(0, 1)
-        ax1.set_ylim(0, 1)
-
-        M = 1000  # sample numbers in gaussian distribution
-        gaussian_value = np.zeros((M, M))
-        Gaussian = multivariate_normal(mean=mean, cov=cov)
-        X, Y = np.meshgrid(np.linspace(0, 1, M), np.linspace(0, 1, M))
-        d = np.dstack([X, Y])
-        Z = Gaussian.pdf(d).reshape(M, M)
-        gaussian_value += Z
-
-        # gaussian_value = gaussian_value / np.max(gaussian_value)
-        max_value = np.max(gaussian_value)
-        if max_value != 0 and not np.isnan(max_value):
-            gaussian_value = gaussian_value / max_value
-        else:
-            # Handle the case where max_value is 0 or NaN
-            gaussian_value = np.zeros_like(gaussian_value)
-        X, Y = np.meshgrid(np.linspace(0, 1, M), np.linspace(0, 1, M))
-        levels = [0.01 * i for i in range(101)]
-
-        ax1.contourf(X, Y, gaussian_value, levels, cmap=cm.jet)
-
-        fig.tight_layout()
-        fig.savefig(f'{self.episode_gifs_path}/agent{self.agent_id}_step{step}_intent.png', dpi=150)
-
-        fig.clf()
-        plt.close(fig)
-    
-    def plot(self, obs, gaussian_mean, gaussian_cov, planned_trajectory=[], all_planned_trajectory=[]):
+    def plot(self, obs, gaussian_mean, gaussian_cov, original_position, planned_trajectory=[], all_planned_trajectory=[]):
         with self.lock: # Lock to see only current state
             all_agent_route = copy.deepcopy(self.shared_memory["agent_route"])
         
@@ -379,33 +332,35 @@ class EvalDiffusionWorker:
         ax5 = fig.add_subplot(2, 3, 5)
         ax5.set_ylim(0, 1)  # BUG hopefully this prevents the lines bug
         ax5.set_xlim(0, 1)
-        ax5.set_title('Interesting area')
+        ax5.set_title('(5) High-Interest Area')
         high_info_area = gp_ipp_obs.get_high_info_area()
         x = high_info_area[:, 0]
         y = high_info_area[:, 1]
         
         heatmap, xedges, yedges = np.histogram2d(x, y, bins=30, range=[[0, 1], [0, 1]])
         extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
-        ax5.imshow(heatmap.T, extent=extent, origin='lower', cmap='viridis', aspect='auto', vmin=0, vmax=1)
+        im5 = ax5.imshow(heatmap.T, extent=extent, origin='lower', cmap='viridis', aspect='auto', vmin=0, vmax=np.max(heatmap) if np.max(heatmap) > 0 else 1)
+        # fig.colorbar(im5, ax=ax5) #, label='Binary Indicator')
         ## END INTERESTING AREA
 
         ## START UPDATE PRED MEAN
         ax1 = fig.axes[0] # Pred Mean subplot
-        ax1.scatter(start_pos[0], start_pos[1], c="r", marker='*', s=15 ** 2) # Start Position
+        ax1.scatter(start_pos[0], start_pos[1], c="white", marker='o', s=10 ** 2) # Start Position
         for id in range(self.num_agent):
             pointsToDisplay = [point for point in all_agent_route[f"{id}"]]
             x = [item[0] for item in pointsToDisplay]
             y = [item[1] for item in pointsToDisplay]
-            min_alpha = 0.25
+            min_alpha = 0.4
             max_alpha = 1
             for i in range(len(x) - 1):
                 alpha = min_alpha + (max_alpha - min_alpha) * (i / (len(x) - 1))
                 ax1.plot(x[i:i + 2], y[i:i + 2], c=colorlist[id], linewidth=4, zorder=5, alpha=alpha)
+            ax1.scatter(x[-1], y[-1], c=colorlist[id], marker='*', s=25 ** 2, edgecolors='white', linewidths=1, zorder=6) # Current Position
 
         # Plot own intent route
         x = [item[0] for item in planned_trajectory]
         y = [item[1] for item in planned_trajectory]
-        ax1.plot(x, y, c='white', linewidth=4, zorder=4, alpha=0.3)
+        ax1.plot(x, y, c='white', linewidth=4, zorder=4, alpha=0.6, linestyle='--')
         ax1.set_xlim(0, 1)
         ax1.set_ylim(0, 1)
         ## END UPDATE PRED MEAN
@@ -414,7 +369,7 @@ class EvalDiffusionWorker:
         ax3 = fig.add_subplot(2, 3, 3)
         ax3.set_xlim(0, 1)
         ax3.set_ylim(0, 1)
-        ax3.set_title('Intent')
+        ax3.set_title("(3) Other Agents' Intent")
         M = 1000  # sample numbers in gaussian distribution
         gaussian_value = np.zeros((M, M))
         for i in range(self.num_agent):
@@ -432,51 +387,60 @@ class EvalDiffusionWorker:
             # Handle the case where max_value is 0 or NaN
             gaussian_value = np.zeros_like(gaussian_value)
         X, Y = np.meshgrid(np.linspace(0, 1, M), np.linspace(0, 1, M))
-        levels = [0.01 * i for i in range(101)]
-
-        ax3.contourf(X, Y, gaussian_value, levels, cmap=cm.jet)
+        
+        im3 = ax3.contourf(X, Y, gaussian_value, levels=101, cmap='viridis', vmin=0, vmax=1)
+        # fig.colorbar(im3, ax=ax3) #, label='Normalized Probability')
 
         for i in range(self.num_agent):
             if i != self.agent_id and len(gaussian_mean[f"{i}"]) != 0:
-                ax3.scatter(gaussian_mean[f"{i}"][0], gaussian_mean[f"{i}"][1], c=colorlist[i], marker='*',
-                            s=15 ** 2)
+                ax3.scatter(gaussian_mean[f"{i}"][0], gaussian_mean[f"{i}"][1], c=colorlist[i], marker='v',
+                            s=20 ** 2)
         ## END INTENT PLOT
 
-        ## START PLOTTING SEPERATE FUSED INTENT
-        from matplotlib.figure import Figure
-        fused_intent_fig = Figure(figsize=(10, 10))
+        ## START PLOTTING SEPARATE FUSED INTENT
+        fused_intent_fig = Figure(figsize=(4, 4))
         fused_ax = fused_intent_fig.add_subplot(1, 1, 1)
+        fused_ax.set_title(f"Agent {self.agent_id} Observed Intent")
         fused_ax.set_xlim(0, 1)
         fused_ax.set_ylim(0, 1)
-        fused_ax.contourf(X, Y, gaussian_value, levels, cmap=cm.jet)
+        im_fused = fused_ax.contourf(X, Y, gaussian_value, levels=101, cmap='viridis', vmin=0, vmax=1)
+        # fused_intent_fig.colorbar(im_fused, ax=fused_ax) #, label='Normalized Probability')
 
         for i in range(self.num_agent):
             if i != self.agent_id and len(gaussian_mean[f"{i}"]) != 0:
-                fused_ax.scatter(gaussian_mean[f"{i}"][0], gaussian_mean[f"{i}"][1], c=colorlist[i], marker='*',
-                            s=15 ** 2)
+                fused_ax.scatter(gaussian_mean[f"{i}"][0], gaussian_mean[f"{i}"][1], c=colorlist[i], marker='v',
+                                 s=20 ** 2)
 
         fused_intent_fig.tight_layout()
-        fused_intent_fig.savefig(f'{self.episode_gifs_path}/agent{self.agent_id}_fused_intent_step{agent_step}.png', dpi=150)
+        fused_intent_fig.savefig(f'{self.episode_gifs_path}/agent{self.agent_id}_fused_intent_step{agent_step}.png', dpi=800)
         fused_intent_fig.clf()
         plt.close(fused_intent_fig)
-        ## END PLOTTING SEPERATE FUSED INTENT
+        ## END PLOTTING SEPARATE FUSED INTENT
 
         ## START SELF INTENT PLOT
         ax6 = fig.add_subplot(2, 3, 6)
-        ax6.set_title('Self Intent')
+        ax6.set_title('(6) Self Intent')
         current_position = obs["current_position"] # (2,)
-        for i, planned_trajectory in enumerate(all_planned_trajectory):
+        for i, trajectory in enumerate(all_planned_trajectory):
             # Plot own intent route
-            x = [current_position[0]]
-            y = [current_position[1]]
-            planned_x = [item[0] for item in planned_trajectory]
-            planned_y = [item[1] for item in planned_trajectory]
+            x = [original_position[0]]
+            y = [original_position[1]]
+            planned_x = [item[0] for item in trajectory]
+            planned_y = [item[1] for item in trajectory]
             x += planned_x
             y += planned_y
             ax6.plot(x, y, c=agent_color, linewidth=2, zorder=4, alpha=0.6)
-            ax6.scatter(planned_x, planned_y, c=agent_color, marker='o', s=4 ** 2, zorder=5) # Planned Path
-            ax6.scatter(planned_x[-1], planned_y[-1], c=agent_color, marker='s', s=10 ** 2, zorder=6) # Planned Path
-        ax6.scatter(current_position[0], current_position[1], c=agent_color, marker='*', s=15 ** 2, zorder=6) # Start Position
+            ax6.scatter(planned_x, planned_y, c=agent_color, marker='o', s=6 ** 2, zorder=5, alpha=0.6) # Planned Path
+            ax6.scatter(planned_x[-1], planned_y[-1], c=agent_color, marker='s', s=12 ** 2, zorder=6, alpha=0.6) # Planned Path
+        if len(planned_trajectory) != 0:
+            best_planned_x = [original_position[0]] + [item[0] for item in planned_trajectory]
+            best_planned_y = [original_position[1]] + [item[1] for item in planned_trajectory]
+            ax6.plot(best_planned_x, best_planned_y, c='white', linewidth=3, zorder=7)
+            ax6.plot(best_planned_x, best_planned_y, c=agent_color, linewidth=2, zorder=7)
+            ax6.scatter(best_planned_x, best_planned_y, c=agent_color, marker='o', s=6 ** 2, edgecolors='white', linewidths=1, zorder=8) # Planned Path
+            ax6.scatter(best_planned_x[-1], best_planned_y[-1], c=agent_color, marker='s', s=12 ** 2, edgecolors='white', linewidths=1, zorder=9) # Planned Path
+        ax6.scatter(original_position[0], original_position[1], c=agent_color, marker='d', s=15 ** 2, edgecolors='white', linewidths=1, zorder=10) # Original Position
+        ax6.scatter(current_position[0], current_position[1], c=agent_color, marker='*', s=25 ** 2, edgecolors='white', linewidths=1, zorder=11) # Current Position
         ax6.set_xlim(0, 1)
         ax6.set_ylim(0, 1)
 
@@ -498,18 +462,71 @@ class EvalDiffusionWorker:
             # Handle the case where max_value is 0 or NaN
             gaussian_value = np.zeros_like(gaussian_value)
         X, Y = np.meshgrid(np.linspace(0, 1, M), np.linspace(0, 1, M))
-        levels = [0.01 * i for i in range(101)]
-
-        ax6.contourf(X, Y, gaussian_value, levels, cmap=cm.jet)
+        
+        # Use viridis colormap for consistency
+        im6 = ax6.contourf(X, Y, gaussian_value, levels=101, cmap='viridis', vmin=0, vmax=1)
+        # fig.colorbar(im6, ax=ax6) #, label='Normalized Probability')
         ## END SELF INTENT PLOT
-            
-        fig.suptitle('Color: {} Cov trace: {:.4g}  remain_budget: {:.4g}'.format(agent_color, cov_trace, budget_remaining))
-        fig.savefig(f'{self.episode_gifs_path}/agent{self.agent_id}_step{agent_step}.png', dpi=150)
+
+        ## START PLOTTING SEPARATE SELF INTENT
+        self_intent_fig = Figure(figsize=(4, 4))
+        self_ax = self_intent_fig.add_subplot(1, 1, 1)
+        self_ax.set_title(f"Agent {self.agent_id} Intent")
+        for i, trajectory in enumerate(all_planned_trajectory):
+            # Plot own intent route
+            x = [original_position[0]]
+            y = [original_position[1]]
+            planned_x = [item[0] for item in trajectory]
+            planned_y = [item[1] for item in trajectory]
+            x += planned_x
+            y += planned_y
+            self_ax.plot(x, y, c=agent_color, linewidth=2, zorder=4, alpha=0.6)
+            self_ax.scatter(planned_x, planned_y, c=agent_color, marker='o', s=6 ** 2, zorder=5, alpha=0.6) # Planned Path
+            self_ax.scatter(planned_x[-1], planned_y[-1], c=agent_color, marker='s', s=12 ** 2, zorder=6, alpha=0.6) # Planned Path
+        if len(planned_trajectory) != 0:
+            best_planned_x = [original_position[0]] + [item[0] for item in planned_trajectory]
+            best_planned_y = [original_position[1]] + [item[1] for item in planned_trajectory]
+            self_ax.plot(best_planned_x, best_planned_y, c='white', linewidth=3, zorder=7)
+            self_ax.plot(best_planned_x, best_planned_y, c=agent_color, linewidth=2, zorder=7)
+            self_ax.scatter(best_planned_x, best_planned_y, c=agent_color, marker='o', s=6 ** 2, edgecolors='white', linewidths=1, zorder=8) # Planned Path
+            self_ax.scatter(best_planned_x[-1], best_planned_y[-1], c=agent_color, marker='s', s=12 ** 2, edgecolors='white', linewidths=1, zorder=9) # Planned Path
+        self_ax.scatter(original_position[0], original_position[1], c=agent_color, marker='d', s=15 ** 2, edgecolors='white', linewidths=1, zorder=10) # Original Position
+        self_ax.scatter(current_position[0], current_position[1], c=agent_color, marker='*', s=25 ** 2, edgecolors='white', linewidths=1, zorder=11) # Current Position
+        self_ax.set_xlim(0, 1)
+        self_ax.set_ylim(0, 1)
+
+        im_self = self_ax.contourf(X, Y, gaussian_value, levels=101, cmap='viridis', vmin=0, vmax=1)
+        # self_intent_fig.colorbar(im_self, ax=self_ax) #, label='Normalized Probability')
+
+        self_intent_fig.tight_layout()
+        self_intent_fig.savefig(f'{self.episode_gifs_path}/agent{self.agent_id}_self_intent_step{agent_step}.png', dpi=800)
+        self_intent_fig.clf()
+        plt.close(self_intent_fig)
+        ## END PLOTTING SEPARATE SELF INTENT
+
+        # Add legend at bottom in 1 compact row
+        legend_elements = [
+            Line2D([0], [0], marker='o', color='lightgrey', linestyle='', markerfacecolor='white', markersize=10, label='Start'),
+            Line2D([0], [0], marker='*', color='lightgrey', linestyle='', markerfacecolor='gray', markersize=25, label='Current Pos'),
+            Line2D([0], [0], marker='d', color='lightgrey', linestyle='', markerfacecolor='gray', markersize=15, label='Plan Origin'),
+            Line2D([0], [0], color='white', linestyle='--', linewidth=2, label='Best Path'),
+            Line2D([0], [0], marker='o', color='lightgrey', linestyle='', markerfacecolor='gray', markersize=6, label='Waypoints'),
+            Line2D([0], [0], marker='s', color='lightgrey', linestyle='', markerfacecolor='gray', markersize=12, label='Endpoint'),
+            Line2D([0], [0], marker='v', color='lightgrey', linestyle='', markerfacecolor='gray', markersize=20, label='Intent Mean'),
+        ]
+        
+        # fig.suptitle(f'Agent {self.agent_id} ({agent_color}) | Cov Trace: {cov_trace:.4g} | Budget Remaining: {budget_remaining:.4g}', 
+        #             fontsize=12, fontweight='bold')
+        fig.tight_layout(rect=[0, 0.05, 1, 1])  # Leave space at bottom for legend
+        
+        legend = fig.legend(handles=legend_elements, loc='lower center', bbox_to_anchor=(0.5, 0.0), 
+                  ncol=7, frameon=True, fontsize=12, columnspacing=1.5, handletextpad=0.5, facecolor='lightgrey')
+        
+        fig.savefig(f'{self.episode_gifs_path}/agent{self.agent_id}_step{agent_step}.png', dpi=800, bbox_inches='tight')
         self.frame_files.append(f'{self.episode_gifs_path}/agent{self.agent_id}_step{agent_step}.png')
 
         fig.clf()
         plt.close(fig)
-
 
     def make_gif(self, obs, delete_files=False, duration=500):
         gif_name = f'{self.episode_gifs_path}/agent{self.agent_id}_cov_trace_{obs["cov_trace"]}.gif'
